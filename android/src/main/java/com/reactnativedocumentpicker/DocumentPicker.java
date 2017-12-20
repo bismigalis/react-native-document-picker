@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  * @see <a href="https://developer.android.com/guide/topics/providers/document-provider.html">android documentation</a>
@@ -42,8 +44,12 @@ public class DocumentPicker extends ReactContextBaseJavaModule implements Activi
 
     private Callback callback;
 
+    private final ReactApplicationContext reactContext;
+
+
     public DocumentPicker(ReactApplicationContext reactContext) {
         super(reactContext);
+        this.reactContext = reactContext;
         reactContext.addActivityEventListener(this);
     }
 
@@ -103,6 +109,26 @@ public class DocumentPicker extends ReactContextBaseJavaModule implements Activi
         }
     }
 
+    private File createFileFromURI(Uri uri) throws Exception {
+        File file = new File(reactContext.getExternalCacheDir(), "photo-" + uri.getLastPathSegment());
+        InputStream input = reactContext.getContentResolver().openInputStream(uri);
+        OutputStream output = new FileOutputStream(file);
+
+        try {
+          byte[] buffer = new byte[4 * 1024];
+          int read;
+          while ((read = input.read(buffer)) != -1) {
+            output.write(buffer, 0, read);
+          }
+          output.flush();
+        } finally {
+          output.close();
+          input.close();
+        }
+
+        return file;
+    }
+
     private WritableMap toMapWithMetadata(Uri uri) {
         WritableMap map;
         if(uri.toString().startsWith("/")) {
@@ -150,30 +176,16 @@ public class DocumentPicker extends ReactContextBaseJavaModule implements Activi
 
     private WritableMap metaDataFromContentResolver(Uri uri) {
         WritableMap map = Arguments.createMap();
-
-        ContentResolver contentResolver = getReactApplicationContext().getContentResolver();
-
-        map.putString(Fields.TYPE, contentResolver.getType(uri));
-
-        Cursor cursor = contentResolver.query(uri, null, null, null, null, null);
-
         try {
-            if (cursor != null && cursor.moveToFirst()) {
-
-                map.putString(Fields.FILE_NAME, cursor.getString(cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)));
-
-                int sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE);
-                if (!cursor.isNull(sizeIndex)) {
-                    String size = cursor.getString(sizeIndex);
-                    if (size != null)
-                        map.putInt(Fields.FILE_SIZE, Integer.valueOf(size));
-                }
-            }
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
+            File file = createFileFromURI(uri);
+            map = metaDataFromFile(file);
+            String realPath = file.getAbsolutePath();
+            map.putString("path", realPath);
+        } catch (Exception e) {
+            Log.e(NAME, "image not in cache", e);
         }
+        ContentResolver contentResolver = getReactApplicationContext().getContentResolver();
+        map.putString(Fields.TYPE, contentResolver.getType(uri));
 
         return map;
     }
