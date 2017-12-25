@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
+import android.support.annotation.NonNull;
 
 import com.facebook.react.bridge.ActivityEventListener;
 import com.facebook.react.bridge.Arguments;
@@ -19,6 +20,7 @@ import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
+import com.reactnativedocumentpicker.utils.RealPathUtil;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -109,8 +111,15 @@ public class DocumentPicker extends ReactContextBaseJavaModule implements Activi
         }
     }
 
+    private @NonNull String getRealPathFromURI(@NonNull final Uri uri) {
+        return RealPathUtil.getRealPathFromURI(reactContext, uri);
+    }
+
     private File createFileFromURI(Uri uri) throws Exception {
-        File file = new File(reactContext.getExternalCacheDir(), "photo-" + uri.getLastPathSegment());
+        String path = getRealPathFromURI(uri);
+        String fileName = Uri.parse(path).getLastPathSegment();
+        Log.i(NAME+"fName", fileName);
+        File file = new File(reactContext.getExternalCacheDir(), fileName);
         InputStream input = reactContext.getContentResolver().openInputStream(uri);
         OutputStream output = new FileOutputStream(file);
 
